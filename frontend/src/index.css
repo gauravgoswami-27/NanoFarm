@@ -1,0 +1,76 @@
+:root {
+  --primary: #1B9C4D;
+  --primary-dark: #127439;
+  --primary-light: #A3E4D7;
+  --secondary: #0A4135;
+  --background: #F2F7F4;
+  --surface: #ffffff;
+  --surface-glass: rgba(255, 255, 255, 0.95);
+  --text-primary: #0F2A1A;
+  --text-secondary: #314C3C;
+  --text-light: #7E9686;
+  --danger: #D9463D;
+  --success: #1D8A46;
+  --border: #CBE0D3;
+  --radius: 16px;
+  --shadow: 0 12px 36px rgba(10, 65, 53, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--background);
+  color: var(--text-primary);
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* For PWA App feel */
+}
+
+.background-elements {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.blob {
+  position: absolute;
+  filter: blur(100px);
+  opacity: 0.5;
+  border-radius: 50%;
+  animation: floatBG 15s ease-in-out infinite alternate;
+}
+
+.blob-1 {
+  top: -10%;
+  right: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, var(--primary-light) 0%, transparent 60%);
+  animation-delay: 0s;
+}
+
+.blob-2 {
+  bottom: -10%;
+  left: -10%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, #d4efdf 0%, transparent 60%);
+  animation-delay: -5s;
+}
+
+@keyframes floatBG {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0, -30px) scale(1.05); }
+}
