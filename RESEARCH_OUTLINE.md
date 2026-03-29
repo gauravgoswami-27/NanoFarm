@@ -58,7 +58,11 @@ A ~250-word summary of the compute gap in agriculture, the MobileNetV3 + AMP met
 *(The technical team will provide exact stats for this later)*
 * **Vision Model Phase**: Detailed explanation of MobileNetV3 transfer learning, data augmentation (color jitter, rotation), and the use of PyTorch AMP (`torch.amp.autocast`) to fit inside a 4GB VRAM constraint (RTX 3050).
 * **Tabular ML Phase**: Explanation of the Random Forest algorithm being used for soil/weather crop recommendation.
-* **NLP Phase (RAG)**: Brief mention of the Retrieval-Augmented Generation multilingual chatbot serving as the platform's user interface.
+* **NLP Phase (RAG & Vision-to-LLM Pipelining)**: The system implements an advanced "Ensemble Pipeline" merging Narrow AI (Convolutional Vision) with General AI (Large Language Models). 
+  * The fast, offline PyTorch model generates a low-bandwidth string prediction (e.g., "Apple_Scab"). 
+  * This text is instantly pushed via an automation webhook (`n8n`) into a localized prompt for the Google Gemini LLM. 
+  * Gemini then dynamically generates a rich, context-aware, organic treatment plan tailored to the exact crop disease. 
+  * This architecture severely reduces data transmission overhead for rural farmers, sending bytes of text rather than megabytes of high-res imagery to cloud processors.
 
 ### IV. Experimental Setup
 * **Hardware**: Training conducted using Google Colab T4 GPUs (15GB VRAM) and Apple Silicon M2 capabilities. 

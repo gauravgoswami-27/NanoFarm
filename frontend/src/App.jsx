@@ -18,9 +18,11 @@ function App() {
     setError(null);
   };
 
-  const executeWebhook = async (payload, isFormData = false) => {
-    if (!webhookUrl) {
-      setError("Webhook URL is missing. Please configure VITE_N8N_WEBHOOK_URL in your .env file.");
+  const executeWebhook = async (payload, isFormData = false, customUrl = null) => {
+    const targetUrl = customUrl || webhookUrl;
+    
+    if (!targetUrl) {
+      setError("Target URL is missing. Please configure your backend or webhook.");
       return null;
     }
 
@@ -37,7 +39,7 @@ function App() {
         options.body = JSON.stringify(payload);
       }
 
-      const response = await fetch(webhookUrl, options);
+      const response = await fetch(targetUrl, options);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

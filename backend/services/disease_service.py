@@ -65,7 +65,7 @@ class DiseaseInferenceService:
 
     def predict(self, image_bytes: bytes):
         if self.model is None:
-            raise RuntimeError("Model is not loaded. Ensure best_model.pth is in backend/models folder.")
+            raise RuntimeError("Model is not loaded. Ensure BOTH 'best_model.pth' and 'classes.txt' are inside the backend/models/ folder!")
             
         # Read image from raw bytes received via API
         image = Image.open(io.BytesIO(image_bytes)).convert('RGB')

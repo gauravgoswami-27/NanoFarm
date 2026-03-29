@@ -46,13 +46,12 @@ function DiseaseDetection({ executeWebhook }) {
     if (!file) return;
 
     const formData = new FormData();
-    formData.append('image', file);
+    // FastAPI expects the parameter to be named 'file'
+    formData.append('file', file);
     
-    // Add a text prompt for the AI Agent handling the image 
-    // This matches your {{ $json.body.message }} expectation in n8n!
-    formData.append('message', 'Please act as an expert agronomist. Analyze this image of a plant leaf, identify the plant and detect any visible diseases. Please reply with only a JSON snippet containing "disease_name" and "treatment".');
-
-    await executeWebhook(formData, true);
+    // Direct traffic to our newly built local Python Backend!
+    const fastApiUrl = 'http://localhost:8000/api/predict-disease';
+    await executeWebhook(formData, true, fastApiUrl);
   };
 
   return (
