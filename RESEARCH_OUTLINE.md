@@ -21,6 +21,24 @@ Your paper’s primary scientific contribution is proving that you can achieve h
 * **Architecture**: We implemented **MobileNetV3 (Small)**, deliberately chosen for its aggressive parameter optimization aimed at mobile deployment. 
 * By comparing our lightweight, mixed-precision model to standard massive models, the paper argues for "Democratized AI" in agriculture.
 
+## 3.5. Deep Dive: The Vision Model Mechanics
+If you need to explain exactly how the AI works under the hood, here is the technical breakdown:
+
+### What Features Are We Using?
+Unlike traditional machine learning where a human manually defines features (e.g., leaf area), our Convolutional Neural Network (CNN) learns features automatically from raw pixels:
+* **Low-Level:** Edges, color gradients, and raw textures.
+* **Mid-Level:** Biological patterns like necrotic lesions, mildew dust, or rust spots.
+* **High-Level:** Combined shapes representing the holistic state of the leaf across 38 disease classes.
+
+### How Are We Training It?
+We are using **Transfer Learning**. Instead of teaching the CNN from scratch (which takes millions of images), we start with `MobileNetV3`, which has already established hierarchical shape recognition from 1.4 million internet images. We then fine-tune its top-level classifier head exclusively on the *PlantVillage* dataset using the **AdamW optimizer** to make it an expert in crop pathology.
+
+### The Architectural Differentiator 
+Most existing agricultural AI papers rely on massive architectures like **ResNet-50** or **VGG-16** which require giant cloud servers to process data. 
+Our approach is entirely focused on **Edge-Optimization**:
+1. **Depthwise Separable Convolutions:** MobileNetV3 splits standard convolutional math into two lighter steps, requiring **90% less computational power** than ResNet-50.
+2. **PyTorch Automatic Mixed Precision (AMP):** We explicitly engineered the training script to use 16-bit floats (Half-Precision). This cuts the GPU memory footprint in half, allowing both training on low-end hardware (like a 4GB RTX 3050) and offline inference on cheap $50 Android smartphones in rural areas without 5G/LTE cloud connectivity.
+
 ## 4. Suggested Paper Structure
 
 ### Abstract
