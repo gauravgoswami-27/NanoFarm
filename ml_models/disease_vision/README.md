@@ -1,50 +1,97 @@
-# Disease Vision Model - Neural Farms
+# Disease Vision Model — Neural Farms
 
-This directory contains the PyTorch implementation for identifying crop diseases from leaf images. 
-It uses a highly-optimized **MobileNetV3** architecture that is capable of running on edge devices and smartphones while preventing Out-of-Memory (OOM) errors on GPUs with limited VRAM (like an RTX 3050 4GB).
+This directory contains the PyTorch pipeline for identifying **crop diseases** from leaf images.  
+It uses a fine-tuned **MobileNetV3-Small** that is optimised for limited VRAM (RTX 3050 4 GB).
 
-## Hardware Optimization Notes
-To support running on your `RTX 3050 4GB`, the `train.py` script heavily utilizes **PyTorch Automatic Mixed Precision (AMP)** via `torch.amp.autocast`. This trains the model in 16-bit floating point precision where possible, dramatically reducing VRAM usage and speeding up training, allowing you to use reasonable batch sizes despite the 4GB limit.
+---
 
-## 1. Setup Environment
+## Datasets covered
 
-Make sure you install the requirements first. 
+| # | Dataset | Classes | Source |
+|---|---------|---------|--------|
+| 1 | PlantVillage | 38 (Apple, Corn, Tomato, etc.) | *(optional, add manually)* |
+| 2 | Rice Leaf Diseases | 3 (Bacterial blight, Brown spot, Leaf smut) | [Kaggle](https://www.kaggle.com/datasets/vbookshelf/rice-leaf-diseases) |
+| 3 | Cotton Disease | 4 (diseased/fresh leaf & plant) | [Kaggle](https://www.kaggle.com/datasets/janmejaybhoi/cotton-disease-dataset) |
+| 4 | Wheat Leaf Rust & Nitrogen Deficiency | 2 (wheat_healthy, wheat_leaf_rust) | [Kaggle](https://www.kaggle.com/datasets/jocelyndumlao/wheat-nitrogen-deficiency-and-leaf-rust-image) |
+
+> **Gemini Vision Fallback**: if the local model's confidence falls below **60 %** on an
+> uploaded image, the backend automatically sends the photo to Gemini Vision for
+> identification and generates a treatment plan — no extra work needed by the end user.
+
+---
+
+## Hardware notes
+
+`train.py` / `merge_and_train.py` use **PyTorch AMP (torch.amp.autocast)** with fp16
+to prevent OOM on 4 GB VRAM GPUs and to speed up training by ~2×.
+
+---
+
+## Quick start
+
+### Step 1 — Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-*(Note: It is highly recommended to create a python virtual environment `python -m venv venv` and activate it before installing packages)*
+### Step 2 — Download all datasets
 
-## 2. Obtain the Dataset
-
-For this research project, we are targeting the **PlantVillage Dataset**.
-
-1. Download the dataset from Kaggle: [PlantVillage Dataset](https://www.kaggle.com/datasets/emmarex/plantdisease)
-2. Extract it into a folder. Your structure should look like:
-   ```text
-   PlantVillage/
-     Apple___Apple_scab/
-       image1.jpg
-     Apple___Black_rot/
-       image2.jpg
-     ...
-   ```
-
-## 3. Train the Model (Local Test)
-
-To test the training locally on your RTX 3050, run:
+From the **project root** (`agri/`):
 
 ```bash
-python train.py --data_dir /path/to/extracted/PlantVillage --epochs 5 --batch_size 16
+python data.py
 ```
-*Tip: If you run into CUDA Out of Memory errors, simply drop `--batch_size` to 8.*
 
-## 4. Run Inference
+This downloads Rice, Cotton, and Wheat datasets via `kagglehub` (requires a free Kaggle account).  
+The script also prints the exact `merge_and_train.py` command to copy-paste in Step 3.
 
-Once trained, it will output `best_model.pth` and `classes.txt`.
-You can then run predictions on new, unseen leaf images:
+### Step 3 — Merge datasets and train
 
 ```bash
-python inference.py --image /path/to/test/leaf.jpg
+cd ml_models/disease_vision
+
+python merge_and_train.py \
+  --rice   "$HOME/.cache/kagglehub/datasets/vbookshelf/rice-leaf-diseases/versions/1/rice_leaf_diseases" \
+  --cotton "$HOME/.cache/kagglehub/datasets/janmejaybhoi/cotton-disease-dataset/versions/1/Cotton Disease" \
+  --wheat  "$HOME/.cache/kagglehub/datasets/jocelyndumlao/wheat-nitrogen-deficiency-and-leaf-rust-image/versions/1/th422bg4yd-1/WheatLeafRust" \
+  --epochs 15 \
+  --batch_size 16
 ```
+
+*Tip: if you see CUDA OOM errors, drop `--batch_size` to `8`.*
+
+The script will:
+1. Create a unified staging directory (`/tmp/neural_farms_unified/`) using symlinks.
+2. Print a per-class image count table.
+3. Train MobileNetV3-Small with AMP + AdamW + Cosine LR schedule.
+4. **Automatically save `best_model.pth` and `classes.txt` directly into `backend/models/`** so the FastAPI server picks them up without any manual copying.
+
+### Step 4 — (Optional) Include PlantVillage
+
+Download [PlantVillage](https://www.kaggle.com/datasets/emmarex/plantdisease) and add:
+
+```bash
+python merge_and_train.py \
+  --plantvillage /path/to/PlantVillage \
+  ...
+```
+
+### Step 5 — Run inference
+
+Once `best_model.pth` is in `backend/models/`, restart the FastAPI backend and upload
+a leaf image through the Neural Farms UI. The response includes:
+
+```json
+{
+  "disease_name": "wheat_leaf_rust",
+  "confidence": 94.3,
+  "source": "PyTorch Local Model",
+  "gemini_used": true,
+  "top_3": [...],
+  "treatment": "Step 1: ..."
+}
+```
+
+If confidence < 60 %, `source` will be `"Gemini Vision (AI Fallback)"` and the
+image itself is sent to Gemini for diagnosis.

@@ -13,7 +13,7 @@ def train_crop_model(data_path: str, save_path: str = "rf_crop_model.pkl", outpu
         raise FileNotFoundError(f"Dataset not found at {data_path}. Please download the Kaggle Crop Recommendation dataset.")
         
     print(f"Loading dataset from: {data_path}")
-    df = pd.parse_csv(data_path) if data_path.endswith('.csv') else pd.read_csv(data_path)
+    df = pd.read_csv(data_path)
     
     # Standard Kaggle dataset columns: N, P, K, temperature, humidity, ph, rainfall, label
     expected_features = ['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']

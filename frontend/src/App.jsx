@@ -1,236 +1,166 @@
-import { useState, useEffect } from 'react';
-import './App.css';
+import { useState } from 'react';
+import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import './index.css';
 import SoilPrediction from './components/SoilPrediction';
 import DiseaseDetection from './components/DiseaseDetection';
 import AIExpertChat from './components/AIExpertChat';
+import HomePage from './components/HomePage';
+
+const FAST_API_BASE = 'http://localhost:8000/api';
+
+const NAV_ITEMS = [
+  { id: 'home',    path: '/',         icon: '🏡', label: 'Home',          badge: null },
+  { id: 'disease', path: '/disease',    icon: '🔬', label: 'Disease Detect', badge: 'AI' },
+  { id: 'soil',    path: '/soil',       icon: '🌱', label: 'Crop Predict',   badge: null },
+  { id: 'chat',    path: '/chat',       icon: '💬', label: 'AI Agronomist',  badge: null },
+];
 
 function App() {
-  const [activeTab, setActiveTab] = useState('soil');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    setResult(null);
-    setError(null);
+  /** ─── Soil / Crop Prediction via FastAPI ───────────────────────────── */
+  const predictCrop = async (payload) => {
+    const res = await fetch(`${FAST_API_BASE}/predict-crop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
   };
 
-  const executeWebhook = async (payload, isFormData = false, customUrl = null) => {
-    const targetUrl = customUrl || webhookUrl;
-    
-    if (!targetUrl) {
-      setError("Target URL is missing. Please configure your backend or webhook.");
-      return null;
+  /** ─── Disease Detection via FastAPI ─────────────────────────────────── */
+  const detectDisease = async (formData) => {
+    const res = await fetch(`${FAST_API_BASE}/predict-disease`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
     }
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const options = { method: 'POST' };
-      if (isFormData) {
-        options.body = payload;
-      } else {
-        options.headers = { 'Content-Type': 'application/json' };
-        options.body = JSON.stringify(payload);
-      }
-
-      const response = await fetch(targetUrl, options);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.status === 'error') {
-        setError(data.message);
-        return null;
-      }
-      
-      // Fix for Langchain AI Agent outputs in Disease Detection
-      if (data.status === 'success' && data.type === 'chatbot_response') {
-        try {
-          let str = data.data.chatbot_response;
-          if (str.includes('```json')) {
-            str = str.split('```json')[1].split('```')[0].trim();
-          } else if (str.includes('```')) {
-            str = str.split('```')[1].split('```')[0].trim();
-          }
-          const parsed = JSON.parse(str);
-          if (parsed.disease_name || parsed.disease || parsed.treatment) {
-             data.type = 'disease_detection';
-             data.data = {
-               disease_name: parsed.disease_name || parsed.disease || 'Unknown',
-               treatment: parsed.treatment || 'Consult agronomist.'
-             };
-          } else if (parsed.recommended_crop || parsed.crop) {
-             data.type = 'crop_prediction';
-             data.data = {
-               recommended_crop: parsed.recommended_crop || parsed.crop || 'Unknown',
-               confidence_score: parsed.confidence_score || null
-             };
-          }
-        } catch(e) {
-          console.warn("Could not parse LLM output as JSON", e);
-        }
-      }
-
-      setResult(data);
-      return data;
-      
-    } catch (err) {
-      setError(err.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
+    return res.json();
   };
+
+  /** ─── AI Chat via FastAPI ───────────────────────────────────────────── */
+  const sendChat = async (text, history = []) => {
+    const res = await fetch(`${FAST_API_BASE}/chat-agronomist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, history }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    if (data.status === 'success' && data.type === 'chatbot_response') {
+      return data.data.chatbot_response;
+    }
+    return JSON.stringify(data);
+  };
+
+  const goTo = (page) => navigate(page);
 
   return (
-    <div className="pwa-layout">
-      {/* Dynamic Background */}
-      <div className="background-elements">
-        <div className="blob blob-1"></div>
-        <div className="blob blob-2"></div>
+    <>
+      {/* Ambient Background */}
+      <div className="bg-ambient">
+        <div className="bg-blob bg-blob-1" />
+        <div className="bg-blob bg-blob-2" />
+        <div className="bg-blob bg-blob-3" />
       </div>
 
-      {/* Mobile Header */}
-      <header className="mobile-header mobile-only">
-        <span className="icon">🌿</span>
-        <h1>AgriAI</h1>
-      </header>
+      <div className={`app-shell ${isCollapsed ? 'collapsed' : ''}`}>
+        {/* ── Desktop Sidebar ─────────────────────────────────── */}
+        <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+          <div className="sidebar-brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            <div className="brand-icon">🌿</div>
+            {!isCollapsed && (
+              <div className="brand-text">
+                <h1>nanoFarms</h1>
+                <span>AI Agriculture</span>
+              </div>
+            )}
+          </div>
 
-      {/* Navigation (Sidebar on Desktop, Bottom bar on Mobile) */}
-      <nav className="pwa-nav">
-        <div className="nav-brand desktop-only">
-          <span className="icon">🌿</span>
-          <h1>AgriAI Solutions</h1>
-          <p className="subtitle">Empowering farmers with AI</p>
-        </div>
-        
-        <div className="nav-links">
           <button 
-            className={`nav-item ${activeTab === 'soil' ? 'active' : ''}`}
-            onClick={() => handleTabChange('soil')}
+            className="sidebar-toggle" 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            <span className="nav-icon">🌱</span>
-            <span className="nav-label">Crop Predict</span>
+            {isCollapsed ? '»' : '«'}
           </button>
-          <button 
-            className={`nav-item ${activeTab === 'disease' ? 'active' : ''}`}
-            onClick={() => handleTabChange('disease')}
-          >
-            <span className="nav-icon">🐞</span>
-            <span className="nav-label">Disease Detect</span>
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`}
-            onClick={() => handleTabChange('chat')}
-          >
-            <span className="nav-icon">💬</span>
-            <span className="nav-label">AI Chat</span>
-          </button>
-        </div>
-      </nav>
 
-      <main className="pwa-main">
-        <div className="content-wrapper">
-          {/* Tab Render Area */}
-          <div className={`tab-panel ${activeTab === 'soil' ? 'active-panel' : ''}`}>
-            {activeTab === 'soil' && <SoilPrediction executeWebhook={executeWebhook} />}
-          </div>
-          
-          <div className={`tab-panel ${activeTab === 'disease' ? 'active-panel' : ''}`}>
-            {activeTab === 'disease' && <DiseaseDetection executeWebhook={executeWebhook} />}
-          </div>
-          
-          <div className={`tab-panel ${activeTab === 'chat' ? 'active-panel' : ''}`}>
-            {activeTab === 'chat' && <AIExpertChat webhookUrl={webhookUrl} />}
-          </div>
-        </div>
+          {!isCollapsed && <p className="nav-section-label" style={{ marginBottom: '10px' }}>Navigation</p>}
 
-        {/* Global Loading Overlay */}
-        {loading && (
-          <div className="loading-overlay">
-            <div className="spinner"></div>
-            <p className="pulse-text">Analyzing data with AI...</p>
-          </div>
-        )}
+          <nav className="nav-links">
+            {NAV_ITEMS.map(item => (
+              <NavLink
+                key={item.id}
+                to={item.path}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                id={`nav-${item.id}`}
+                title={isCollapsed ? item.label : ''}
+              >
+                <div className="nav-icon-wrap">{item.icon}</div>
+                {!isCollapsed && <span className="nav-label-text">{item.label}</span>}
+                {!isCollapsed && item.badge && <span className="nav-badge">{item.badge}</span>}
+              </NavLink>
+            ))}
+          </nav>
 
-        {/* Global Error Toast */}
-        {error && (
-          <div className="error-toast">
-            <div className="error-icon">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM11 15H13V17H11V15ZM11 7H13V13H11V7Z" fill="currentColor"/>
-              </svg>
-            </div>
-            <div className="error-content">
-              <strong>Something went wrong</strong>
-              <p>{error}</p>
-            </div>
-            <button className="error-close" onClick={() => setError(null)}>×</button>
-          </div>
-        )}
-
-        {/* Global Result Display for Soil & Disease */}
-        {result && !error && activeTab !== 'chat' && (
-          <div className="result-overlay">
-            <div className="result-container">
-            <div className="result-header">
-              <h3>Analysis Result</h3>
-              <button className="close-btn" onClick={() => setResult(null)}>×</button>
-            </div>
-            <div className="result-content">
-              {result?.type === 'crop_prediction' ? (
-                <div className="result-card">
-                  <div className="result-field">
-                    <strong>Recommended Crop</strong>
-                    <span style={{ fontSize: '1.8rem', color: 'var(--primary-dark)', display: 'block', marginTop: '4px' }}>
-                      🌱 {result.data.recommended_crop} 
-                      {result.data.confidence_score && ` (${(result.data.confidence_score * 100).toFixed(1)}%)`}
-                    </span>
-                  </div>
+          <div className="sidebar-footer">
+            <div className={`ai-badge ${isCollapsed ? 'mini' : ''}`}>
+              <div className="ai-badge-dot" />
+              {!isCollapsed && (
+                <div className="ai-badge-text">
+                  <strong>Models Online</strong>
+                  MobileNetV3 • AI Vision
                 </div>
-              ) : result?.type === 'disease_detection' ? (
-                <div className="result-card">
-                  <div className="result-field">
-                    <strong>Detected Disease</strong>
-                    <span style={{ fontSize: '1.4rem', color: 'var(--danger)', display: 'block', marginTop: '4px' }}>
-                      🐞 {result.data.disease_name}
-                    </span>
-                  </div>
-                  <div className="result-field">
-                    <strong>Recommended Treatment</strong>
-                    <span style={{ fontSize: '1.1rem', display: 'block', marginTop: '4px' }}>
-                      {result.data.treatment}
-                    </span>
-                  </div>
-                </div>
-              ) : result?.type === 'chatbot_response' ? (
-                <div className="result-card">
-                  <div className="result-field">
-                    <strong>AI Analysis Response</strong>
-                    <span style={{ fontSize: '1.1rem', display: 'block', marginTop: '4px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                      {result.data.chatbot_response.replace(/```json|```/g, '').trim()}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', background: '#f5f5f5', padding: '1rem', borderRadius: '8px' }}>
-                  {JSON.stringify(result, null, 2)}
-                </pre>
               )}
             </div>
           </div>
+        </aside>
+
+        {/* ── Mobile Header ───────────────────────────────────── */}
+        <div className="mobile-header">
+          <div className="mobile-header-brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            <div className="brand-icon">🌿</div>
+            <h1>nanoFarms</h1>
           </div>
-        )}
-      </main>
-    </div>
+        </div>
+
+        {/* ── Main Content ────────────────────────────────────── */}
+        <main className="main-content">
+          <Routes>
+            <Route path="/" element={<HomePage onNavigate={goTo} />} />
+            <Route path="/disease" element={<DiseaseDetection detectDisease={detectDisease} />} />
+            <Route path="/soil" element={<SoilPrediction predictCrop={predictCrop} />} />
+            <Route path="/chat" element={<AIExpertChat sendChat={sendChat} />} />
+          </Routes>
+        </main>
+
+        {/* ── Mobile Bottom Nav ─────────────────────────────────── */}
+        <nav className="mobile-nav">
+          {NAV_ITEMS.map(item => (
+            <NavLink
+              key={item.id}
+              to={item.path}
+              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+            >
+              <div className="nav-icon-wrap">{item.icon}</div>
+              <span className="mobile-nav-label">{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+    </>
   );
 }
 
